@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Meta Tags & Title -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Options Analysis Dashboard </title>
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <!-- Custom Styles -->
+    <style>
+        /* General Styles */
+        body {
+            background: #000;
+            color: #00ff00;
+            overflow-x: hidden;
+            font-family: 'VT323', monospace;
+        }
+
+        /* Matrix Rain Effect */
+        .matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Hidden Class */
+        .hidden {
+            display: none;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            border: 4px solid rgba(0, 255, 0, 0.3);
+            border-top: 4px solid #00ff00;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Spinner Animation */
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Button Styles */
+        .matrix-btn {
+            background: transparent;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: transform 0.2s, box-shadow 0.3s;
+            font-size: 1.1rem;
+            font-weight: bold;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .matrix-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 8px #00ff00;
+            background: #00ff00;
+            color: #000;
+        }
+
+        /* Content Wrapper */
+        #content {
+            position: relative;
+            z-index: 10;
+            padding: 10px;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Tooltip Styles */
+        .tooltip {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .tooltip::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            background: rgba(0, 255, 0, 0.9);
+            color: #000;
+            padding: 4px 8px;
+            border-radius: 4px;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            pointer-events: none;
+            font-size: 0.9rem;
+        }
+
+        .tooltip:hover::after {
+            opacity: 1;
+        }
+
+        /* Card Styles */
+        .option-card {
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff00;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            color: #00ff00;
+            transition: transform 0.2s, box-shadow 0.3s;
+            width: 100%;
+        }
+
+        .option-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 12px #00ff00;
+        }
+
+        .option-card h3 {
+            font-size: 1.75rem;
+            margin-bottom: 8px;
+        }
+
+        .option-card p {
+            margin-bottom: 4px;
+            font-size: 1.1rem;
+        }
+
+        /* Responsive Grid */
+        @media screen and (min-width: 640px) {
+            .buttons-grid {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                justify-content: center;
+            }
+
+            .matrix-btn {
+                width: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Matrix Rain Canvas -->
+    <canvas id="matrixCanvas" class="matrix-canvas"></canvas>
+
+    <!-- Main Content -->
+    <div id="content">
+        <!-- Filter Section -->
+        <div id="filterSection" class="mb-6">
+            <h1 class="text-5xl font-extrabold mb-6 text-center">Enhanced Options Analysis Dashboard</h1>
+            <div id="loadingIndicator" class="flex justify-center items-center mb-6">
+                <div class="loading-spinner"></div>
+            </div>
+            <div class="tooltip mb-6 text-center" data-tooltip="Data is automatically loaded from the provided Google Sheets link.">
+                <i class="text-lg">(Hover here for data loading info)</i>
+            </div>
+            <div class="buttons-grid">
+                <button class="matrix-btn" onclick="filterData('Short')">Short</button>
+                <button class="matrix-btn" onclick="filterData('Long')">Long</button>
+                <button class="matrix-btn" onclick="filterData('Consider Short')">Consider Short</button>
+                <button class="matrix-btn" onclick="filterData('Consider Long')">Consider Long</button>
+                <button class="matrix-btn" onclick="filterData('Whole Market Observation')">Whole Market</button>
+            </div>
+        </div>
+
+        <!-- Data Section -->
+        <div id="dataSection" class="hidden">
+            <button class="matrix-btn mb-4" onclick="showFilterSection()">Back to Filters</button>
+            <div id="cardsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+            <!-- Chart Container -->
+            <div id="chartContainer" class="mt-6">
+                <canvas id="dataChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Code -->
+    <script>
+        // Matrix Rain Effect
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const katakana = 'アカサタナハマヤラワガザダバパイキシチニヒミリヰギジヂビピウクスツヌフムユルグズヅブプエケセテネヘメレヱゲゼデベペオコソトノホモヨロヲゴゾドボポ';
+        const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const nums = '0123456789';
+        const alphabet = katakana + latin + nums;
+
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+        const drops = Array(Math.floor(columns)).fill(1);
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#0f0';
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < drops.length; i++) {
+                const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 33);
+
+        let jsonData = [];
+
+        // Load Data from Google Sheets using Fetch API
+        const apiKey = 'YOUR_API_KEY'; // Replace with your API key
+        const spreadsheetId = '1ue5ltPWT5QWUHMoEgFth1GV5Knt5EQLs';
+        const sheetName = 'Sheet1';
+        const range = `${sheetName}!A1:Z1000`; // Adjust the range as needed
+
+        function loadData() {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?key=${apiKey}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    jsonData = processData(data);
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    alert("Data successfully loaded! You can now filter data.");
+                })
+                .catch(error => {
+                    document.getElementById('loadingIndicator').classList.add('hidden');
+                    alert('Error loading data: ' + error);
+                });
+        }
+
+        function processData(data) {
+            const rows = data.values;
+            const headers = rows[0];
+            const result = [];
+
+            for (let i = 1; i < rows.length; i++) {
+                const rowData = {};
+                for (let j = 0; j < headers.length; j++) {
+                    rowData[headers[j]] = rows[i][j];
+                }
+                result.push(rowData);
+            }
+
+            return result;
+        }
+
+        window.onload = function () {
+            loadData();
+        };
+
+        // Filter Data
+        function filterData(positionType) {
+            if (jsonData.length === 0) {
+                alert('Data is still loading. Please wait a moment.');
+                return;
+            }
+
+            let filteredData = [];
+            if (positionType === 'Whole Market Observation') {
+                filteredData = jsonData;
+            } else {
+                filteredData = jsonData.filter(row => row.Recommendation && row.Recommendation.trim() === positionType);
+            }
+
+            // Remove empty or invalid rows
+            filteredData = filteredData.filter(row => row.OptionName && row.OptionName.trim() !== '');
+
+            // Sort and select top 5 based on appropriate Sharpe Ratio
+            if (positionType.includes('Long')) {
+                filteredData.sort((a, b) => parseFloat(b['Sharpe_Long']) - parseFloat(a['Sharpe_Long']));
+            } else if (positionType.includes('Short')) {
+                filteredData.sort((a, b) => parseFloat(b['Sharpe_Short']) - parseFloat(a['Sharpe_Short']));
+            }
+
+            filteredData = filteredData.slice(0, 5);
+            showDataSection(filteredData, positionType);
+        }
+
+        // Show Data Section
+        function showDataSection(data, positionType) {
+            document.getElementById('filterSection').classList.add('hidden');
+            document.getElementById('dataSection').classList.remove('hidden');
+
+            const cardsContainer = document.getElementById('cardsContainer');
+            cardsContainer.innerHTML = '';
+
+            // Sequentially display each card
+            data.forEach((item, index) => {
+                setTimeout(() => {
+                    const card = createOptionCard(item, positionType);
+                    cardsContainer.appendChild(card);
+                }, index * 500); // Delay between each card
+            });
+
+            // Create Chart
+            createChart(data, positionType);
+        }
+
+        // Create Option Card
+        function createOptionCard(data, positionType) {
+            const card = document.createElement('div');
+            card.classList.add('option-card');
+
+            const title = document.createElement('h3');
+            title.textContent = data.OptionName || 'N/A';
+            card.appendChild(title);
+
+            const optionType = document.createElement('p');
+            optionType.textContent = `Option Type: ${data.OptionType || 'N/A'}`;
+            card.appendChild(optionType);
+
+            const strikePrice = document.createElement('p');
+            strikePrice.textContent = `Strike Price: ${data.StrikePrice || 'N/A'}`;
+            card.appendChild(strikePrice);
+
+            const days = document.createElement('p');
+            days.textContent = `Days to Expiry: ${data.Days || 'N/A'}`;
+            card.appendChild(days);
+
+            const lastSpotPrice = document.createElement('p');
+            lastSpotPrice.textContent = `Last Spot Price: ${data.LastSpotPrice || 'N/A'}`;
+            card.appendChild(lastSpotPrice);
+
+            const volatility = document.createElement('p');
+            volatility.textContent = `Volatility: ${data.Volatility || 'N/A'}`;
+            card.appendChild(volatility);
+
+            // Key Metrics
+            const metricsTitle = document.createElement('h4');
+            metricsTitle.textContent = 'Key Metrics:';
+            metricsTitle.style.marginTop = '12px';
+            card.appendChild(metricsTitle);
+
+            if (positionType.includes('Long')) {
+                const popLong = document.createElement('p');
+                popLong.textContent = `PoP_Long (%): ${data['PoP_Long (%)'] || 'N/A'}`;
+                card.appendChild(popLong);
+
+                const sharpeLong = document.createElement('p');
+                sharpeLong.textContent = `Sharpe_Long: ${data['Sharpe_Long'] || 'N/A'}`;
+                card.appendChild(sharpeLong);
+            } else if (positionType.includes('Short')) {
+                const popShort = document.createElement('p');
+                popShort.textContent = `PoP_Short (%): ${data['PoP_Short (%)'] || 'N/A'}`;
+                card.appendChild(popShort);
+
+                const sharpeShort = document.createElement('p');
+                sharpeShort.textContent = `Sharpe_Short: ${data['Sharpe_Short'] || 'N/A'}`;
+                card.appendChild(sharpeShort);
+            }
+
+            return card;
+        }
+
+        // Back to Filter Section
+        function showFilterSection() {
+            document.getElementById('dataSection').classList.add('hidden');
+            document.getElementById('filterSection').classList.remove('hidden');
+        }
+
+        // Create Chart
+        function createChart(data, positionType) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            const labels = data.map(row => row.OptionName || 'N/A');
+
+            let values = [];
+            let label = '';
+
+            if (positionType.includes('Long')) {
+                values = data.map(row => parseFloat(row['PoP_Long (%)']) || 0);
+                label = 'PoP_Long (%)';
+            } else if (positionType.includes('Short')) {
+                values = data.map(row => parseFloat(row['PoP_Short (%)']) || 0);
+                label = 'PoP_Short (%)';
+            } else {
+                values = data.map(row => parseFloat(row['PoP_Long (%)']) || parseFloat(row['PoP_Short (%)']) || 0);
+                label = 'PoP (%)';
+            }
+
+            // Destroy previous chart if exists
+            if (window.dataChart) {
+                window.dataChart.destroy();
+            }
+
+            window.dataChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: values,
+                        backgroundColor: 'rgba(0, 255, 0, 0.5)',
+                        borderColor: 'rgba(0, 255, 0, 1)',
+                        borderWidth: 1,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeInOutQuart'
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 255, 0, 0.2)'
+                            },
+                            ticks: {
+                                color: '#00ff00'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 255, 0, 0.2)'
+                            },
+                            ticks: {
+                                color: '#00ff00'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#00ff00'
+                            }
+                        }
+                    }
+                },
+            });
+        }
+    </script>
+</body>
+
+</html>
