@@ -232,7 +232,7 @@
         let jsonData = [];
 
         // Load Data from Google Sheets using Fetch API
-        const apiKey = 'YOUR_API_KEY'; // Replace with your API key
+        const apiKey = 'AIzaSyAB3BDwhGBtCiU5hPiWQuc6ak19R_zjhk4'; //  API key private* do not use it please
         const spreadsheetId = '1ue5ltPWT5QWUHMoEgFth1GV5Knt5EQLs';
         const sheetName = 'Sheet1';
         const range = `${sheetName}!A1:Z1000`; // Adjust the range as needed
